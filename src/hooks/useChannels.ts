@@ -9,20 +9,30 @@ export interface Channel {
 
 export function useChannels(): Array<Channel> {
     const { state } = useContext(store);
+    const apiBaseUrl = state.apiBaseUrl;
 
-    const { data } = useQuery<Array<Channel>>(`channels`, () => {
+    const { data } = useQuery<Array<Channel>, Error>(["channels", apiBaseUrl], async ({ signal }) => {
+            const response = await fetch(
+                new URL(`${apiBaseUrl}/channels`).toString(),
+                {signal}
+            );
 
-        const queryUrl = new URL(`${state.apiBaseUrl}/channels`);
-
-        return fetch(queryUrl.toString()).then((response) => {
-            if (response.ok) {
-                return response;
+            if (!response.ok) {
+                throw new Error(response.statusText);
             }
 
-            throw Error(response.statusText);
-        }).then(response => response.json())
-            .then((data: { channels: Array<Channel> }) => data.channels);
-    }, { refetchOnWindowFocus: false, refetchOnReconnect: false });
+            const body = await response.json() as { channels: Array<Channel> };
+            return body.channels;
+        },
+        {
+            enabled: Boolean(apiBaseUrl),
+            staleTime: Infinity,
+            retry: 1,
+            refetchOnWindowFocus: false,
+            refetchOnReconnect: false,
+            refetchOnMount: false,
+        }
+    );
 
     return data ?? [];
 }
